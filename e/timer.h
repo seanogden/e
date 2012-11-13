@@ -30,7 +30,11 @@
 
 // POSIX
 #include <errno.h>
+#ifdef LINUX
 #include <time.h>
+#else
+#include <sys/time.h>
+#endif
 
 // STL
 #include <exception>
@@ -45,6 +49,7 @@ namespace e
 inline uint64_t
 time()
 {
+#ifdef LINUX
     timespec ts;
 
     if (clock_gettime(CLOCK_REALTIME, &ts) < 0)
@@ -53,6 +58,16 @@ time()
     }
 
     return ts.tv_sec * 1000000000 + ts.tv_nsec;
+#else
+    struct timeval ts;
+
+    if (gettimeofday(&ts,NULL) < 0)
+    {
+        throw po6::error(errno);
+    }
+
+    return ts.tv_sec * 1000000000 + ts.tv_usec * 1000;
+#endif
 }
 
 // These sleep functions do not return early when interrupted by signals.
@@ -122,6 +137,7 @@ class stopwatch
 
     public:
         void start() { reset(); }
+#ifdef LINUX
         void reset()
         {
             if (clock_gettime(CLOCK_REALTIME, &m_start) < 0)
@@ -129,7 +145,6 @@ class stopwatch
                 throw po6::error(errno);
             }
         }
-
         uint64_t resolution()
         {
             timespec res;
@@ -138,7 +153,6 @@ class stopwatch
             {
                 throw po6::error(errno);
             }
-
             return res.tv_sec * 1000000000 + res.tv_nsec;
         }
 
@@ -175,7 +189,61 @@ class stopwatch
     private:
         timespec m_start;
 };
+#else
+        void reset()
+        {
+            if (gettimeofday(&m_start, NULL) < 0)
+            {
+                throw po6::error(errno);
+            }
+        }
 
+        uint64_t resolution()
+        {
+            struct timeval res;
+
+            if (gettimeofday(&res, NULL) < 0)
+            {
+                throw po6::error(errno);
+            }
+            return res.tv_sec * 1000000000 + res.tv_usec * 1000;
+        }
+
+        uint64_t peek()
+        {
+            struct timeval end;
+
+            if (gettimeofday(&end, NULL) < 0)
+            {
+                throw po6::error(errno);
+            }
+
+            struct timeval diff;
+
+            if ((end.tv_usec < m_start.tv_usec) < 0)
+            {
+                diff.tv_sec = end.tv_sec - m_start.tv_sec - 1;
+                diff.tv_usec = 1000000000 + end.tv_usec - m_start.tv_usec; 
+            }
+            else
+            {
+                diff.tv_sec = end.tv_sec - m_start.tv_sec;
+                diff.tv_usec = end.tv_usec - m_start.tv_usec;
+            }
+
+            return diff.tv_sec * 1000000000 + diff.tv_usec * 1000;
+        }
+
+        uint64_t peek_ms()
+        {
+            return peek() / 1000000.;
+        }
+
+    private:
+        struct timeval m_start;
+};
+#endif
+        
 } // namespace e
 
 #endif // e_buffer_h_
