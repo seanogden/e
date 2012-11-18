@@ -28,7 +28,9 @@
 #ifndef e_safe_math_h_
 #define e_safe_math_h_
 
+#ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
+#endif
 
 // C
 #include <stdint.h>
